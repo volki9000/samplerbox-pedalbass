@@ -113,7 +113,7 @@ class PlayingSound:
         self.isfadeout = False
         self.note = note
 
-    def fadeout(self, i):
+    def fadeout(self):
         if self.sound.playbackMode == 1:
             self.isfadeout = True
 
@@ -157,7 +157,7 @@ class Sound:
             npdata = numpy.repeat(npdata, 2)
         return npdata
 
-FADEOUTLENGTH = 30000
+FADEOUTLENGTH = 200000
 FADEOUT = numpy.linspace(1., 0., FADEOUTLENGTH)            # by default, float64
 FADEOUT = numpy.power(FADEOUT, 6)
 FADEOUT = numpy.append(FADEOUT, numpy.zeros(FADEOUTLENGTH, numpy.float32)).astype(numpy.float32)
@@ -197,13 +197,13 @@ def PlayNoteCallback(midinote, state):
     velocity = 127
 
     midinote += globaltranspose
-    # TODO no note offs yet: Are sounds stopped at the end or do they loop indefinetely? Also, can
-    # we have both? Shot mode and loop mode? For the latter we need to detect button down and button up events
     try:
         if state == True:
-            playingnotes.setdefault(midinote, []).append(samples[midinote, velocity].play(midinote))
+            if not midinote in playingnotes:
+                playingnotes[midinote] = samples[midinote, velocity].play(midinote)
         else:
-           playingnotes[midinote].fadeout(50)
+            playingnotes[midinote].fadeout()
+            del playingnotes[midinote]
     except:
         pass
 
@@ -409,8 +409,6 @@ if USE_BUTTONS:
         lastbuttontime = time.time()
         while True:
             now = time.time()
-
-
             if (now - lastbuttontime) < 0.2:
                 time.sleep(0.020)
                 continue
