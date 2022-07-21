@@ -250,10 +250,10 @@ def ActuallyLoad():
         dirname = os.path.join(samplesdir, basename)
     if not basename:
         print('Preset empty: %s' % presetIndex)
-        display("E%03d" % presetIndex)
+        display.print7seg("E%03d" % presetIndex)
         return
     print('Preset loading: %s (%s)' % (presetIndex, basename))
-    display("L%03d" % presetIndex)
+    display.print7seg("L%03d" % presetIndex)
 
     definitionfname = os.path.join(dirname, "definition.txt")
     if os.path.isfile(definitionfname):
@@ -316,10 +316,10 @@ def ActuallyLoad():
                     pass
     if len(initial_keys) > 0:
         print('Preset loaded: ' + str(presetIndex))
-        display("P%03d" % presetIndex)
+        display.print7seg("P%03d" % presetIndex)
     else:
         print('Preset empty: ' + str(presetIndex))
-        display("E%03d" % presetIndex)
+        display.print7seg("E%03d" % presetIndex)
 
 
 #########################################
@@ -341,36 +341,14 @@ except:
 #
 #########################################
 
-# 7-Segment display, not sure if it is i2c
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(9, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-GPIO.setup(10, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-GPIO.setup(11, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+# 7-Segment display using TM1637
 
-#if USE_I2C_7SEGMENTDISPLAY:
-"""import smbus
+import tm1637
 
-bus = smbus.SMBus(1)     # using I2C
-
-def display(s):
-    for k in '\x76\x79\x00' + s:     # position cursor at 0
-        try:
-            bus.write_byte(0x71, ord(k))
-        except:
-            try:
-                bus.write_byte(0x71, ord(k))
-            except:
-                pass
-        time.sleep(0.002)
-
-display('----')"""
-#    time.sleep(0.5)
-
-#else:
-
-def display(s):
-    print(s)
-
+display = tm1637.TM1637(CLK=9, DIO=10, brightness=1.0)
+display.Clear()
+digits = [0x00, 0x01, 0x02, 0x03]
+display.SetBrightness(1)
 
 #########################################
 # BUTTONS THREAD (RASPBERRY PI GPIO)
@@ -419,6 +397,7 @@ if USE_BUTTONS:
                 presetIndex -= 1
                 if presetIndex < 0:
                     presetIndex = 127
+                display.print7seg('LdIn')
                 LoadSamples()
                 time.sleep(0.2)
             # Next preset
@@ -427,33 +406,31 @@ if USE_BUTTONS:
                 presetIndex += 1
                 if presetIndex > 127:
                     presetIndex = 0
+                display.print7seg('LdIn')
                 LoadSamples()
                 time.sleep(0.2)
             # Volume down
             elif not GPIO.input(22):
                 lastbuttontime = now
-                presetIndex -= 1
-                if presetIndex < 0:
-                    presetIndex = 127
-                display('V - ')
+
+                display.print7seg('db -')
                 globalvolume *= 10 ** (-3.0 / 20)
-                time.sleep(0.2)
+                time.sleep(0.5)
+                display.print7seg("P%03d" % presetIndex)
             # Volume up
             elif not GPIO.input(23):
                 lastbuttontime = now
-                presetIndex += 1
-                if presetIndex > 127:
-                    presetIndex = 0
-                display('V + ')
+                display.print7seg('db+r')
                 globalvolume *= 10 ** (3.0 / 20)
-                time.sleep(0.2)
+                time.sleep(0.5)
+                display.print7seg("P%03d" % presetIndex)
             # Panic
             elif not GPIO.input(4):
                 lastbuttontime = now
                 presetIndex -= 1
                 if presetIndex < 0:
                     presetIndex = 127
-                display('PNIC')
+                display.print7seg('PnIC')
                 playingnotes.clear()
                 playingsounds.clear()
                 time.sleep(0.2)
