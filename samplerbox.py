@@ -34,6 +34,7 @@ USE_SERIALPORT_MIDI = False             # Set to True to enable MIDI IN via Seri
 USE_I2C_7SEGMENTDISPLAY = True          # Set to True to use a 7-segment display via I2C
 USE_BUTTONS = True                     # Set to True to use momentary buttons (connected to RaspberryPi's GPIO pins) to change preset
 MAX_POLYPHONY = 13                      # This can be set higher, but 80 is a safe value
+DEBOUNCE_SECS = 0.15
 
 #########################################
 # 7-SEGMENT DISPLAY
@@ -193,6 +194,7 @@ playingnotes = {}
 sustainplayingnotes = []
 sustain = True
 playingsounds = []
+last_played_per_note = [0] * MAX_POLYPHONY
 globalvolume = 10 ** (-12.0/20)  # -12dB default global volume
 globaltranspose = 0
 
@@ -215,22 +217,25 @@ def AudioCallback(outdata, frame_count, time_info, status):
     b *= globalvolume
     outdata[:] = b.reshape(outdata.shape)
 
-def PlayNoteCallback(midinote, state):
+def PlayNoteCallback(midinote, state, event_time):
 #    print("playing" + str(midinote))
     global playingnotes, sustain, sustainplayingnotes
     global presetIndex
     velocity = 127
-
-    midinote += globaltranspose
-    try:
+    
+    if event_time - last_played_per_note[midinote] > DEBOUNCE_SECS:
         if state == True:
-            if not midinote in playingnotes:
-                playingnotes[midinote] = samples[midinote, velocity].play(midinote)
-        else:
-            playingnotes[midinote].fadeout()
-            del playingnotes[midinote]
-    except:
-        pass
+            last_played_per_note[midinote] = event_time
+        midinote += globaltranspose
+        try:
+            if state == True:
+                if not midinote in playingnotes:
+                    playingnotes[midinote] = samples[midinote, velocity].play(midinote)
+            else:
+                playingnotes[midinote].fadeout()
+                del playingnotes[midinote]
+        except:
+            pass
 
 #########################################
 # LOAD SAMPLES
@@ -281,13 +286,14 @@ def ActuallyLoad():
         display.print7seg("L%03d" % presetIndex)
 
         definitionfname = os.path.join(dirname, "definition.txt")
+        print('Loading def=' + definitionfname)
         if os.path.isfile(definitionfname):
             with open(definitionfname, 'r') as definitionfile:
                 for i, entry in enumerate(definitionfile):
                     m = re.match('(?:volume=)(?P<volume>-*\d)', entry)
                     if m:
-                        presetVolume = m.groupdict().get('volume', 0)
-                        globalvolume = 10 ** (int(presetVolume)/20)
+                        presetVolume = int(m.groupdict().get('volume', 0))-12
+                        globalvolume = 10 ** (presetVolume/20)
                         continue
                     try:
                         defaultparams = {'midinote': '0', 'velocity': '127', 'notename': '', 'mode': '0'}
@@ -396,10 +402,11 @@ if USE_BUTTONS:
 
             global presetIndex, lastbuttontime, globalvolume
             lastbuttontime = time.time()
+            last_played = []
             while True:
                 now = time.time()
-                if (now - lastbuttontime) < 0.01:
-                    time.sleep(0.011)
+                if (now - lastbuttontime) < 0.005:
+                    time.sleep(0.0051)
                     continue
                 upperKeyMask = dev.readall()
                 # Previous preset
@@ -448,109 +455,109 @@ if USE_BUTTONS:
                 # C
                 if GPIO.input(26):
                     lastbuttontime = now
-                    PlayNoteCallback(0, True)
+                    PlayNoteCallback(0, True, now)
                 # C#
                 if GPIO.input(17):
                     lastbuttontime = now
-                    PlayNoteCallback(1, True)
+                    PlayNoteCallback(1, True, now)
                 # D
                 if GPIO.input(7):
                     lastbuttontime = now
-                    PlayNoteCallback(2, True)
+                    PlayNoteCallback(2, True, now)
                 # D#
                 if GPIO.input(8):
                     lastbuttontime = now
-                    PlayNoteCallback(3, True)
+                    PlayNoteCallback(3, True, now)
                 # E
                 if GPIO.input(25):
                     lastbuttontime = now
-                    PlayNoteCallback(4, True)
+                    PlayNoteCallback(4, True, now)
                 # F
                 if upperKeyMask & 1 > 0:
                     lastbuttontime = now
-                    PlayNoteCallback(5, True)
+                    PlayNoteCallback(5, True, now)
                 # F#
                 if upperKeyMask & 2 > 0:
                     lastbuttontime = now
-                    PlayNoteCallback(6, True)
+                    PlayNoteCallback(6, True, now)
                 # G
                 if upperKeyMask & 4 > 0:
                     lastbuttontime = now
-                    PlayNoteCallback(7, True)
+                    PlayNoteCallback(7, True, now)
                 # G#
                 if upperKeyMask & 8 > 0:
                     lastbuttontime = now
-                    PlayNoteCallback(8, True)
+                    PlayNoteCallback(8, True, now)
                 # A
                 if upperKeyMask & 16 > 0:
                     lastbuttontime = now
-                    PlayNoteCallback(9, True)
+                    PlayNoteCallback(9, True, now)
                 # A#
                 if upperKeyMask & 32 > 0:
                     lastbuttontime = now
-                    PlayNoteCallback(10, True)
+                    PlayNoteCallback(10, True, now)
                 # B
                 if upperKeyMask & 64 > 0:
                     lastbuttontime = now
-                    PlayNoteCallback(11, True)
+                    PlayNoteCallback(11, True, now)
                 # C
                 if upperKeyMask & 128 > 0:
                     lastbuttontime = now
-                    PlayNoteCallback(12, True)
+                    PlayNoteCallback(12, True, now)
 
                 # Note Offs
                 # C
                 if not GPIO.input(26):
                     lastbuttontime = now
-                    PlayNoteCallback(0, False)
+                    PlayNoteCallback(0, False, now)
                 # C#
                 if not GPIO.input(17):
                     lastbuttontime = now
-                    PlayNoteCallback(1, False)
+                    PlayNoteCallback(1, False, now)
                 # D
                 if not GPIO.input(7):
                     lastbuttontime = now
-                    PlayNoteCallback(2, False)
+                    PlayNoteCallback(2, False, now)
                 # D#
                 if not GPIO.input(8):
                     lastbuttontime = now
-                    PlayNoteCallback(3, False)
+                    PlayNoteCallback(3, False, now)
                 # E
                 if not GPIO.input(25):
                     lastbuttontime = now
-                    PlayNoteCallback(4, False)
+                    PlayNoteCallback(4, False, now)
                 # F
                 if not upperKeyMask & 1 > 0:
                     lastbuttontime = now
-                    PlayNoteCallback(5, False)
+                    PlayNoteCallback(5, False, now)
                 # F#
                 if not upperKeyMask & 2 > 0:
                     lastbuttontime = now
-                    PlayNoteCallback(6, False)
+                    PlayNoteCallback(6, False, now)
                 # G
                 if not upperKeyMask & 4 > 0:
                     lastbuttontime = now
-                    PlayNoteCallback(7, False)
+                    PlayNoteCallback(7, False, now)
                 # G#
                 if not upperKeyMask & 8 > 0:
                     lastbuttontime = now
-                    PlayNoteCallback(8, False)
+                    PlayNoteCallback(8, False, now)
                 # A
                 if not upperKeyMask & 16 > 0:
                     lastbuttontime = now
-                    PlayNoteCallback(9, False)
+                    PlayNoteCallback(9, False, now)
                 # A#
                 if not upperKeyMask & 32 > 0:
                     lastbuttontime = now
-                    PlayNoteCallback(10, False)
+                    PlayNoteCallback(10, False, now)
                 # B
                 if not upperKeyMask & 64 > 0:
                     lastbuttontime = now
-                    PlayNoteCallback(11, False)
+                    PlayNoteCallback(11, False, now)
                 # C
                 if not upperKeyMask & 128 > 0:
                     lastbuttontime = now
-                    PlayNoteCallback(12, False)
+                    PlayNoteCallback(12, False, now)
         except  BaseException as e:
             writeToLog('Failed in Buttons(): ' + e)
     ButtonsThread = threading.Thread(target=Buttons)
