@@ -45,7 +45,7 @@ DEBOUNCE_SECS = 0.15
 
 import tm1637
 
-display = tm1637.TM1637(CLK=9, DIO=10, brightness=1.0)
+display = tm1637.TM1637(CLK=10, DIO=9, brightness=1.0)
 display.Clear()
 digits = [0x00, 0x01, 0x02, 0x03]
 display.SetBrightness(1)
@@ -195,6 +195,7 @@ sustainplayingnotes = []
 sustain = True
 playingsounds = []
 last_played_per_note = [0] * MAX_POLYPHONY
+note_active = [0] * MAX_POLYPHONY
 globalvolume = 10 ** (-12.0/20)  # -12dB default global volume
 globaltranspose = 0
 
@@ -228,14 +229,14 @@ def PlayNoteCallback(midinote, state, event_time):
             last_played_per_note[midinote] = event_time
         midinote += globaltranspose
         try:
-            if state == True:
-                if not midinote in playingnotes:
-                    playingnotes[midinote] = samples[midinote, velocity].play(midinote)
+            if state == True and not note_active[midinote]:
+                playingnotes[midinote] = samples[midinote, velocity].play(midinote)
             else:
                 playingnotes[midinote].fadeout()
                 del playingnotes[midinote]
         except:
             pass
+    note_active[midinote] = state
 
 #########################################
 # LOAD SAMPLES
@@ -405,9 +406,6 @@ if USE_BUTTONS:
             last_played = []
             while True:
                 now = time.time()
-                if (now - lastbuttontime) < 0.005:
-                    time.sleep(0.0051)
-                    continue
                 upperKeyMask = dev.readall()
                 # Previous preset
                 if not GPIO.input(15):
@@ -452,114 +450,127 @@ if USE_BUTTONS:
                     display.print7seg("P%03d" % presetIndex)
 
                 # Note Ons
-                # C
-                if GPIO.input(26):
+                # C - B1
+                if not GPIO.input(26):
+                    #display.print7seg('C  1')
                     lastbuttontime = now
                     PlayNoteCallback(0, True, now)
-                # C#
-                if GPIO.input(17):
+                # C# - C1
+                if not GPIO.input(17):
+                    #display.print7seg('C+ 1')
                     lastbuttontime = now
                     PlayNoteCallback(1, True, now)
-                # D
-                if GPIO.input(7):
+                # D - B2
+                if not GPIO.input(7):
+                    #display.print7seg('d  1')
                     lastbuttontime = now
                     PlayNoteCallback(2, True, now)
-                # D#
-                if GPIO.input(8):
+                # D# - C2
+                if not GPIO.input(8):
+                    #display.print7seg('d+ 1')
                     lastbuttontime = now
                     PlayNoteCallback(3, True, now)
-                # E
-                if GPIO.input(25):
+                # E - A1
+                if not GPIO.input(25):
+                    #display.print7seg('E  1')
                     lastbuttontime = now
                     PlayNoteCallback(4, True, now)
-                # F
-                if upperKeyMask & 1 > 0:
+                # F - A2
+                if not upperKeyMask & 1 > 0:
+                    #display.print7seg('E+ 1')
                     lastbuttontime = now
                     PlayNoteCallback(5, True, now)
-                # F#
-                if upperKeyMask & 2 > 0:
+                # F# - C3
+                if not upperKeyMask & 2 > 0:
+                    #display.print7seg('E++1')
                     lastbuttontime = now
                     PlayNoteCallback(6, True, now)
-                # G
-                if upperKeyMask & 4 > 0:
+                # G - B3
+                if not upperKeyMask & 4 > 0:
+                    #display.print7seg('L  1')
                     lastbuttontime = now
                     PlayNoteCallback(7, True, now)
-                # G#
-                if upperKeyMask & 8 > 0:
+                # G# - C4
+                if not upperKeyMask & 8 > 0:
+                    #display.print7seg('L+ 1')
                     lastbuttontime = now
                     PlayNoteCallback(8, True, now)
-                # A
-                if upperKeyMask & 16 > 0:
+                # A - B4
+                if not upperKeyMask & 16 > 0:
+                    #display.print7seg('0  1')
                     lastbuttontime = now
                     PlayNoteCallback(9, True, now)
-                # A#
-                if upperKeyMask & 32 > 0:
+                # A# - C5
+                if not upperKeyMask & 32 > 0:
+                    #display.print7seg('0+ 1')
                     lastbuttontime = now
                     PlayNoteCallback(10, True, now)
-                # B
-                if upperKeyMask & 64 > 0:
+                # B - B5
+                if not upperKeyMask & 64 > 0:
+                    #display.print7seg('b  1')
                     lastbuttontime = now
                     PlayNoteCallback(11, True, now)
-                # C
-                if upperKeyMask & 128 > 0:
+                # C - C6
+                if not upperKeyMask & 128 > 0:
+                    #display.print7seg('C  2')
                     lastbuttontime = now
                     PlayNoteCallback(12, True, now)
 
                 # Note Offs
                 # C
-                if not GPIO.input(26):
+                if GPIO.input(26):
                     lastbuttontime = now
                     PlayNoteCallback(0, False, now)
                 # C#
-                if not GPIO.input(17):
+                if GPIO.input(17):
                     lastbuttontime = now
                     PlayNoteCallback(1, False, now)
                 # D
-                if not GPIO.input(7):
+                if GPIO.input(7):
                     lastbuttontime = now
                     PlayNoteCallback(2, False, now)
                 # D#
-                if not GPIO.input(8):
+                if GPIO.input(8):
                     lastbuttontime = now
                     PlayNoteCallback(3, False, now)
                 # E
-                if not GPIO.input(25):
+                if GPIO.input(25):
                     lastbuttontime = now
                     PlayNoteCallback(4, False, now)
                 # F
-                if not upperKeyMask & 1 > 0:
+                if upperKeyMask & 1 > 0:
                     lastbuttontime = now
                     PlayNoteCallback(5, False, now)
                 # F#
-                if not upperKeyMask & 2 > 0:
+                if upperKeyMask & 2 > 0:
                     lastbuttontime = now
                     PlayNoteCallback(6, False, now)
                 # G
-                if not upperKeyMask & 4 > 0:
+                if upperKeyMask & 4 > 0:
                     lastbuttontime = now
                     PlayNoteCallback(7, False, now)
                 # G#
-                if not upperKeyMask & 8 > 0:
+                if upperKeyMask & 8 > 0:
                     lastbuttontime = now
                     PlayNoteCallback(8, False, now)
                 # A
-                if not upperKeyMask & 16 > 0:
+                if upperKeyMask & 16 > 0:
                     lastbuttontime = now
                     PlayNoteCallback(9, False, now)
                 # A#
-                if not upperKeyMask & 32 > 0:
+                if upperKeyMask & 32 > 0:
                     lastbuttontime = now
                     PlayNoteCallback(10, False, now)
                 # B
-                if not upperKeyMask & 64 > 0:
+                if upperKeyMask & 64 > 0:
                     lastbuttontime = now
                     PlayNoteCallback(11, False, now)
                 # C
-                if not upperKeyMask & 128 > 0:
+                if upperKeyMask & 128 > 0:
                     lastbuttontime = now
                     PlayNoteCallback(12, False, now)
         except  BaseException as e:
-            writeToLog('Failed in Buttons(): ' + e)
+            writeToLog('Failed in Buttons(): ' + str(e))
     ButtonsThread = threading.Thread(target=Buttons)
     ButtonsThread.daemon = True
     ButtonsThread.start()
